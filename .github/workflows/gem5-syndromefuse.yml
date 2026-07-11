@@ -20,18 +20,18 @@ jobs:
       - name: Fetch official gem5
         run: |
           git clone --depth 1 --branch v25.1.0.1 https://github.com/gem5/gem5.git gem5
-      - name: Build X86 gem5.opt
+      - name: Build X86 gem5.fast
         id: build
         working-directory: gem5
         continue-on-error: true
         run: |
           set -o pipefail
-          scons --no-compress-debug build/X86/gem5.opt -j2 2>&1 | tee ../gem5-build.log
+          scons build/X86/gem5.fast -j4 2>&1 | tee ../gem5-build.log
       - name: Upload complete build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gem5-build-log
+          name: gem5-fast-build-log
           path: gem5-build.log
           retention-days: 7
       - name: Fail if build failed
@@ -40,16 +40,16 @@ jobs:
       - name: Collect binary and runtime libraries
         run: |
           mkdir -p artifact/lib
-          cp gem5/build/X86/gem5.opt artifact/gem5.opt
-          strip artifact/gem5.opt
-          artifact/gem5.opt --version > artifact/gem5-version.txt
+          cp gem5/build/X86/gem5.fast artifact/gem5.fast
+          strip artifact/gem5.fast
+          artifact/gem5.fast --version > artifact/gem5-version.txt
           git -C gem5 rev-parse HEAD > artifact/gem5-commit.txt
-          ldd artifact/gem5.opt > artifact/ldd.txt
-          ldd artifact/gem5.opt | awk '/=> \/.*\(/ {print $3}' | while read lib; do cp -L "$lib" artifact/lib/; done
-          sha256sum artifact/gem5.opt artifact/lib/* > artifact/SHA256SUMS
+          ldd artifact/gem5.fast > artifact/ldd.txt
+          ldd artifact/gem5.fast | awk '/=> \/.*\(/ {print $3}' | while read lib; do cp -L "$lib" artifact/lib/; done
+          sha256sum artifact/gem5.fast artifact/lib/* > artifact/SHA256SUMS
           du -sh artifact
       - uses: actions/upload-artifact@v4
         with:
-          name: gem5-x86-v25.1.0.1-stripped
+          name: gem5-x86-v25.1.0.1-fast-stripped
           path: artifact
           retention-days: 7
