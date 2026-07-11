@@ -1,0 +1,1 @@
+Trigger official gem5 CI artifact extraction fallback for SyndromeFuse.
