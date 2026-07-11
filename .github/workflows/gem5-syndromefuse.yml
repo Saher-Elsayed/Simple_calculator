@@ -2,8 +2,9 @@ name: gem5-syndromefuse-build
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     paths:
+      - 'gem5-syndromefuse-trigger.txt'
       - '.github/workflows/gem5-syndromefuse.yml'
 
 jobs:
@@ -23,16 +24,17 @@ jobs:
         working-directory: gem5
         run: |
           scons --no-compress-debug build/X86/gem5.opt -j2 --without-tcmalloc --without-protobuf
-      - name: Collect binary
+      - name: Collect binary and runtime libraries
         run: |
-          mkdir -p artifact
+          mkdir -p artifact/lib
           cp gem5/build/X86/gem5.opt artifact/gem5.opt
           strip artifact/gem5.opt
           artifact/gem5.opt --version > artifact/gem5-version.txt
           git -C gem5 rev-parse HEAD > artifact/gem5-commit.txt
           ldd artifact/gem5.opt > artifact/ldd.txt
-          sha256sum artifact/gem5.opt > artifact/SHA256SUMS
-          du -h artifact/gem5.opt
+          ldd artifact/gem5.opt | awk '/=> \/.*\(/ {print $3}' | while read lib; do cp -L "$lib" artifact/lib/; done
+          sha256sum artifact/gem5.opt artifact/lib/* > artifact/SHA256SUMS
+          du -sh artifact
       - uses: actions/upload-artifact@v4
         with:
           name: gem5-x86-v25.1.0.1-stripped
