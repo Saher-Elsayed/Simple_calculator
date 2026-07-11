@@ -1,0 +1,40 @@
+name: gem5-syndromefuse-build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/gem5-syndromefuse.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git scons python3-dev libboost-all-dev pkg-config zlib1g-dev
+      - name: Fetch official gem5
+        run: |
+          git clone --depth 1 --branch v25.1.0.1 https://github.com/gem5/gem5.git gem5
+      - name: Build X86 gem5.opt
+        working-directory: gem5
+        run: |
+          scons --no-compress-debug build/X86/gem5.opt -j2 --without-tcmalloc --without-protobuf
+      - name: Collect binary
+        run: |
+          mkdir -p artifact
+          cp gem5/build/X86/gem5.opt artifact/gem5.opt
+          strip artifact/gem5.opt
+          artifact/gem5.opt --version > artifact/gem5-version.txt
+          git -C gem5 rev-parse HEAD > artifact/gem5-commit.txt
+          ldd artifact/gem5.opt > artifact/ldd.txt
+          sha256sum artifact/gem5.opt > artifact/SHA256SUMS
+          du -h artifact/gem5.opt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gem5-x86-v25.1.0.1-stripped
+          path: artifact
+          retention-days: 7
