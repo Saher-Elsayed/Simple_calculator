@@ -1,0 +1,62 @@
+name: Build gem5 X86 for SyndromeFuse
+
+on:
+  push:
+    branches:
+      - gem5-syndromefuse-sandbox
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-gem5:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Checkout runner repository
+        uses: actions/checkout@v4
+
+      - name: Install gem5 build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential scons python3-dev zlib1g-dev m4 \
+            libprotobuf-dev protobuf-compiler libprotoc-dev \
+            libgoogle-perftools-dev pkg-config xz-utils
+
+      - name: Checkout official gem5 v25.1.0.1
+        run: |
+          git clone --depth 1 --branch v25.1.0.1 \
+            https://github.com/gem5/gem5.git gem5
+          git -C gem5 rev-parse HEAD | tee gem5_commit.txt
+
+      - name: Build X86 gem5.opt
+        working-directory: gem5
+        run: |
+          scons --no-compress-debug build/X86/gem5.opt -j2
+
+      - name: Strip and package binary
+        run: |
+          mkdir -p package/bin package/metadata
+          cp gem5/build/X86/gem5.opt package/bin/gem5.opt
+          strip --strip-unneeded package/bin/gem5.opt || true
+          chmod +x package/bin/gem5.opt
+          cp gem5_commit.txt package/metadata/gem5_commit.txt
+          package/bin/gem5.opt --version | tee package/metadata/version.txt
+          ldd package/bin/gem5.opt | tee package/metadata/ldd.txt
+          sha256sum package/bin/gem5.opt | tee package/metadata/gem5.opt.sha256
+          du -h package/bin/gem5.opt | tee package/metadata/size.txt
+          tar -C package -I 'xz -9 -T0' -cf gem5-x86-v25.1.0.1-linux-x86_64.tar.xz .
+          sha256sum gem5-x86-v25.1.0.1-linux-x86_64.tar.xz > gem5-x86-v25.1.0.1-linux-x86_64.tar.xz.sha256
+          ls -lh gem5-x86-v25.1.0.1-linux-x86_64.tar.xz
+
+      - name: Upload stripped gem5 binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: gem5-x86-v25.1.0.1-syndromefuse
+          path: |
+            gem5-x86-v25.1.0.1-linux-x86_64.tar.xz
+            gem5-x86-v25.1.0.1-linux-x86_64.tar.xz.sha256
+          retention-days: 2
+          compression-level: 0
