@@ -20,18 +20,18 @@ jobs:
       - name: Fetch official gem5
         run: |
           git clone --depth 1 --branch v25.1.0.1 https://github.com/gem5/gem5.git gem5
-      - name: Build X86 gem5.fast
+      - name: Build NULL gem5.fast
         id: build
         working-directory: gem5
         continue-on-error: true
         run: |
           set -o pipefail
-          scons build/X86/gem5.fast -j4 2>&1 | tee ../gem5-build.log
+          scons build/NULL/gem5.fast -j4 2>&1 | tee ../gem5-build.log
       - name: Upload complete build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gem5-fast-build-log
+          name: gem5-null-fast-build-log
           path: gem5-build.log
           retention-days: 7
       - name: Fail if build failed
@@ -40,7 +40,7 @@ jobs:
       - name: Collect binary and runtime libraries
         run: |
           mkdir -p artifact/lib
-          cp gem5/build/X86/gem5.fast artifact/gem5.fast
+          cp gem5/build/NULL/gem5.fast artifact/gem5.fast
           strip artifact/gem5.fast
           artifact/gem5.fast --version > artifact/gem5-version.txt
           git -C gem5 rev-parse HEAD > artifact/gem5-commit.txt
@@ -50,6 +50,6 @@ jobs:
           du -sh artifact
       - uses: actions/upload-artifact@v4
         with:
-          name: gem5-x86-v25.1.0.1-fast-stripped
+          name: gem5-null-v25.1.0.1-fast-stripped
           path: artifact
           retention-days: 7
