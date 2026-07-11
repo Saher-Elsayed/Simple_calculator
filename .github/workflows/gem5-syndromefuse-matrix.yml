@@ -1,0 +1,84 @@
+name: gem5-syndromefuse-matrix
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'gem5-matrix-trigger.txt'
+      - 'gem5_matrix_embedded.py.gz.b64'
+      - '.github/workflows/gem5-syndromefuse-matrix.yml'
+
+jobs:
+  matrix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git scons python3-dev libboost-all-dev pkg-config zlib1g-dev libprotobuf-dev protobuf-compiler libprotoc-dev libgoogle-perftools-dev
+
+      - name: Restore gem5 build cache
+        uses: actions/cache@v4
+        with:
+          path: gem5/build/NULL
+          key: gem5-v25.1.0.1-null-fast-${{ runner.os }}
+
+      - name: Fetch official gem5
+        run: |
+          if [[ ! -d gem5/.git ]]; then
+            git clone --depth 1 --branch v25.1.0.1 https://github.com/gem5/gem5.git gem5
+          fi
+
+      - name: Build NULL gem5.fast
+        run: scons -C gem5 build/NULL/gem5.fast -j4
+
+      - name: Decode matrix runner
+        run: |
+          base64 -d gem5_matrix_embedded.py.gz.b64 | gzip -d > gem5_matrix_embedded.py
+          python3 -m py_compile gem5_matrix_embedded.py
+          chmod +x gem5_matrix_embedded.py
+
+      - name: Smoke test
+        run: |
+          rm -rf gem5_results
+          python3 gem5_matrix_embedded.py --gem5 gem5/build/NULL/gem5.fast --limit 5 | tee gem5_smoke.log
+          test -f gem5_results/gem5_system_results.csv
+          test "$(($(wc -l < gem5_results/gem5_system_results.csv)-1))" -eq 5
+
+      - name: Full 40-case matrix
+        run: |
+          rm -rf gem5_results
+          python3 gem5_matrix_embedded.py --gem5 gem5/build/NULL/gem5.fast | tee gem5_full_run.log
+          python3 - <<'PY'
+          import json
+          p='gem5_results/gem5_verification.json'
+          d=json.load(open(p))
+          assert d['passed'] is True, d
+          assert d['rows']==40, d
+          print(json.dumps(d,indent=2))
+          PY
+
+      - name: Record provenance
+        if: always()
+        run: |
+          mkdir -p provenance
+          gem5/build/NULL/gem5.fast --version > provenance/gem5-version.txt 2>&1 || true
+          git -C gem5 rev-parse HEAD > provenance/gem5-commit.txt
+          sha256sum gem5/build/NULL/gem5.fast > provenance/gem5-binary.sha256
+          uname -a > provenance/uname.txt
+          ldd gem5/build/NULL/gem5.fast > provenance/ldd.txt || true
+
+      - name: Upload gem5 matrix results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: syndromefuse-gem5-40case-results
+          path: |
+            gem5_results
+            gem5_smoke.log
+            gem5_full_run.log
+            provenance
+          retention-days: 30
