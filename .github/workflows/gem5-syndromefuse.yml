@@ -16,14 +16,27 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git scons python3-dev libboost-all-dev pkg-config zlib1g-dev
+          sudo apt-get install -y build-essential git scons python3-dev libboost-all-dev pkg-config zlib1g-dev libprotobuf-dev protobuf-compiler libprotoc-dev libgoogle-perftools-dev
       - name: Fetch official gem5
         run: |
           git clone --depth 1 --branch v25.1.0.1 https://github.com/gem5/gem5.git gem5
       - name: Build X86 gem5.opt
+        id: build
         working-directory: gem5
+        continue-on-error: true
         run: |
-          scons --no-compress-debug build/X86/gem5.opt -j2 --without-tcmalloc --without-protobuf
+          set -o pipefail
+          scons --no-compress-debug build/X86/gem5.opt -j2 2>&1 | tee ../gem5-build.log
+      - name: Upload complete build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gem5-build-log
+          path: gem5-build.log
+          retention-days: 7
+      - name: Fail if build failed
+        if: steps.build.outcome != 'success'
+        run: exit 1
       - name: Collect binary and runtime libraries
         run: |
           mkdir -p artifact/lib
