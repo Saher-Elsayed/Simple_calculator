@@ -1,0 +1,1 @@
+Trigger end-to-end 40-case SyndromeFuse gem5 matrix.
