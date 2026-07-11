@@ -1,1 +1,2 @@
 Trigger isolated official gem5 v25.1.0.1 X86 build for SyndromeFuse system simulation.
+Retry: full dependencies and complete build-log artifact.
