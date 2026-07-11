@@ -1,0 +1,50 @@
+name: gem5-extract-official
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'gem5-official-artifact-trigger.txt'
+      - '.github/workflows/gem5-extract-official.yml'
+
+jobs:
+  extract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download official gem5 CI artifact
+        run: |
+          set -euxo pipefail
+          curl -L --fail --retry 3 \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            'https://api.github.com/repos/gem5/gem5/actions/artifacts/8186413153/zip' \
+            -o gem5-all.zip
+          ls -lh gem5-all.zip
+      - name: Locate and extract NULL binary
+        run: |
+          set -euxo pipefail
+          unzip -l gem5-all.zip | tee artifact-list.txt
+          MATCH="$(unzip -Z1 gem5-all.zip | grep -E '(^|/)build/NULL/gem5\.(opt|fast)$' | head -1)"
+          test -n "$MATCH"
+          mkdir -p artifact
+          unzip -p gem5-all.zip "$MATCH" > artifact/gem5.null
+          chmod +x artifact/gem5.null
+          strip --strip-unneeded artifact/gem5.null || true
+          artifact/gem5.null --version > artifact/gem5-version.txt 2>&1 || true
+          printf '%s\n' "$MATCH" > artifact/source-path.txt
+          printf '%s\n' 'official gem5/gem5 CI artifact 8186413153, head 9f1e60a4066e1b03570034f4ad404a8244495b9d' > artifact/provenance.txt
+          sha256sum artifact/gem5.null > artifact/SHA256SUMS
+          ls -lh artifact/gem5.null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gem5-official-null-ci-binary
+          path: artifact
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gem5-official-artifact-list
+          path: artifact-list.txt
+          retention-days: 7
